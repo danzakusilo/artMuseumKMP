@@ -37,8 +37,6 @@ jobs:
             -destination "platform=iOS Simulator,name=$device" \
             -derivedDataPath ../build/derivedData \
             ONLY_ACTIVE_ARCH=NO \
-            ARCHS="x86_64 arm64" \
-            VALID_ARCHS="x86_64 arm64" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGN_IDENTITY=
 
