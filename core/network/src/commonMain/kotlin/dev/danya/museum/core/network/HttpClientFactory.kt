@@ -8,10 +8,6 @@ import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.json.Json
 
 fun createHttpClient(): HttpClient = HttpClient {
-
-    defaultRequest {
-        url("https://metmuseum.github.io")
-    }
     install(ContentNegotiation) {
         json(Json {
             ignoreUnknownKeys = true
