@@ -24,6 +24,7 @@ kotlin {
         }
         androidMain.dependencies {
             implementation(libs.sqldelight.driver.android)
+            implementation(libs.koin.android)
         }
         iosMain.dependencies {
             implementation(libs.sqldelight.driver.native)
