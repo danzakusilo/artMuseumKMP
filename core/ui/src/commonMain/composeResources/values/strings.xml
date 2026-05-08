@@ -1,0 +1,20 @@
+<resources>
+    <string name="department_american_decorative_arts">American Decorative Arts</string>
+    <string name="department_ancient_west_asian_art">Ancient West Asian Art</string>
+    <string name="department_arms_and_armor">Arms and Armor</string>
+    <string name="department_arts_of_africa_oceania_americas">Arts of Africa, Oceania, and the Americas</string>
+    <string name="department_asian_art">Asian Art</string>
+    <string name="department_the_cloisters">The Cloisters</string>
+    <string name="department_the_costume_institute">The Costume Institute</string>
+    <string name="department_drawings_and_prints">Drawings and Prints</string>
+    <string name="department_egyptian_art">Egyptian Art</string>
+    <string name="department_european_paintings">European Paintings</string>
+    <string name="department_european_sculpture_and_decorative_arts">European Sculpture and Decorative Arts</string>
+    <string name="department_greek_and_roman_art">Greek and Roman Art</string>
+    <string name="department_islamic_art">Islamic Art</string>
+    <string name="department_the_robert_lehman_collection">The Robert Lehman Collection</string>
+    <string name="department_medieval_art">Medieval Art</string>
+    <string name="department_musical_instruments">Musical Instruments</string>
+    <string name="department_photographs">Photographs</string>
+    <string name="department_modern_art">Modern Art</string>
+</resources>

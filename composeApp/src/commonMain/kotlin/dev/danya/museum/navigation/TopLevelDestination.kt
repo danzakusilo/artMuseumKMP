@@ -1,5 +1,6 @@
 package dev.danya.museum.navigation
 
+import dev.danya.museum.feature.artworks.ui.nav.FeedRoute
 import dev.danya.museum.feature.homescreen.ui.nav.HomeRoute
 import kotlinx.serialization.Serializable
 
@@ -10,5 +11,6 @@ enum class TopLevelDestination(
     val label: String,
 ) {
     HOME(HomeRoute, "Home"),
+    DISCOVER(FeedRoute, "Discover"),
     FAVORITES(FavoritesRoute, "Favorites"),
 }

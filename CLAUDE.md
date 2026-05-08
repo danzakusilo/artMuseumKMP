@@ -29,7 +29,13 @@ All dependencies managed via `gradle/libs.versions.toml`.
 
 ---
 
-## Feature: Museum Artworks Explorer
+## Features
+
+### Museum Artworks Explorer
+Core browsing, search, favorites, and exhibits.
+
+### Discover Feed (TikTok-style)
+Full-screen vertical pager. Each session picks a random Met department, shuffles its ID pool with a time-seeded `Random`, pages through with an internal cursor. Imageless artworks are skipped with backfill. Heart button to favorite. Lives in `:feature:artworks:ui:feed/`.
 
 ---
 
@@ -127,6 +133,8 @@ commonMain/
     LoadingView.kt
     ErrorView.kt
     ArtworkCard.kt               reusable card (image via Coil, title, date)
+  composeResources/values/
+    strings.xml                  department_* string resources (all 18 Met departments)
 ```
 
 ### `:feature:artworks:domain`
@@ -137,13 +145,17 @@ commonMain/
                           objectDate?, culture?, period?, dynasty?, medium?, dimensions?,
                           department, classification?, repository?)
     ArtworkSummary.kt     lightweight list item (id, title, primaryImageUrl?, artistName?, objectDate?)
+    Department.kt         enum class Department(id: Int, resourceKey: String) — all 18 Met departments;
+                          companion: fromId(Int)
     Exhibit.kt            data class (id: Long, name, createdAt, artworkCount)
   repository/
-    ArtworkRepository.kt  interface (suspend + Flow only, no platform types)
+    ArtworkRepository.kt  interface (suspend + Flow only, no platform types);
+                          includes getArtworkFeedPage(limit) — cursor-based, no offset
     ExhibitRepository.kt  interface (CRUD + add/remove artwork)
   usecase/
     SearchArtworksUseCase.kt
     GetArtworkDetailUseCase.kt
+    GetArtworkFeedUseCase.kt   wraps getArtworkFeedPage; default page size 10
     GetFavoritesUseCase.kt
     ToggleFavoriteUseCase.kt
     GetExhibitsUseCase.kt
@@ -159,14 +171,21 @@ commonMain/
     dto/
       ArtworkDetailDto.kt    @Serializable, maps from API JSON
       SearchResultDto.kt
-    ArtworkApiService.kt     Ktor calls, returns DTOs
+    ArtworkApiService.kt     Ktor calls; key methods:
+                              search(query), getObjectSingle(id),
+                              fetchArtworkDetails(ids) — parallel fan-out, 5 concurrent, per-item resilient,
+                              fetchDepartmentObjectIds(departmentId),
+                              searchAndFetch(query), fetchRecentArtworks(metadataDate)
   local/
     ArtworkLocalDataSource.kt   SQLDelight-backed artwork cache + favorites
     ExhibitLocalDataSource.kt   SQLDelight-backed exhibits + join-table CRUD
   mapper/
-    ArtworkMapper.kt          DTO → domain entity
+    ArtworkMapper.kt          DTO → domain entity (toDomain, toSummary for both DTO and DB entity)
   repository/
-    ArtworkRepositoryImpl.kt  implements domain repository
+    ArtworkRepositoryImpl.kt  implements domain repository;
+                              feed: holds feedIdPool + feedCursor, picks random Department,
+                              shuffles with session seed, skips imageless, pre-upserts to local DB;
+                              upsertDto() shared helper for detail + feed paths
   di/
     ArtworksDataModule.kt     Koin module
 ```
@@ -174,6 +193,12 @@ commonMain/
 ### `:feature:artworks:ui`
 ```
 commonMain/
+  feed/
+    SwipeFeedScreen.kt       VerticalPager, full-screen artwork pages, gradient overlay,
+                              heart FAB; Coil AsyncImage with ContentScale.Crop
+    SwipeFeedViewModel.kt    cursor-based paging, prefetch threshold = 3,
+                              in-memory favorites set, retry support
+    SwipeFeedState.kt        sealed: Loading, Content(artworks, favorites, isLoadingMore), Error
   list/
     ArtworkListScreen.kt
     ArtworkListViewModel.kt
@@ -190,6 +215,8 @@ commonMain/
     FavoritesScreen.kt
     FavoritesViewModel.kt
   nav/
+    FeedRoute.kt             @Serializable data object — bottom nav "Discover" tab
+    FeedNavGraph.kt           NavGraphBuilder.feedGraph()
     ArtworksNavGraph.kt      nested NavGraph with typed routes
   di/
     ArtworksPresentationModule.kt   Koin module (viewModel { })
@@ -249,6 +276,63 @@ Never throw across layer boundaries. Map exceptions to `AppError` in the data la
 - Data must not depend on Compose or UI types
 - No `lateinit` backing fields on ViewModel state — use `MutableStateFlow`
 - No `GlobalScope` — always use `viewModelScope` or injected scope
+
+---
+
+## Planned: Discovery Features
+
+### FeedSource — Parameterized Feed
+
+All discovery features route through the existing feed screen, parameterized by source.
+
+```kotlin
+// :feature:artworks:domain:entity
+sealed class FeedSource {
+    data object Discover : FeedSource()           // random dept, current behavior
+    data class ByDepartment(val department: Department) : FeedSource()
+    data class ByArtist(val artistName: String) : FeedSource()
+}
+```
+
+**Repository change**: widen `getArtworkFeedPage(limit)` → `getArtworkFeedPage(source: FeedSource, limit: Int)`. Internally, store `activeSource` alongside `feedIdPool`/`feedCursor`; reset pool+cursor when source changes.
+
+**ID pool strategy per source**:
+| Source | Pool init | Notes |
+|---|---|---|
+| `Discover` | `fetchDepartmentObjectIds(randomDept)` | Current behavior |
+| `ByDepartment` | `fetchDepartmentObjectIds(dept.id)` | Reuses existing API method |
+| `ByArtist` | `search(name, artistOrCulture=true, hasImages=true)` | New API method: `searchByArtist` |
+
+**Nav route**: `FeedRoute` gains flat string params (`sourceType`, `sourceValue?`). VM maps back to `FeedSource` on init. Each filtered feed is a new back-stack entry — navigating, not reloading.
+
+### Save Department
+
+**SQLDelight** — `SavedDepartment.sq` in `:core:database`:
+```sql
+CREATE TABLE SavedDepartment (departmentId INTEGER NOT NULL PRIMARY KEY);
+insert / delete / selectAll
+```
+
+**Layer stack**: `SavedDepartmentLocalDataSource` → `DepartmentRepository` (interface in domain, impl in data) → `SaveDepartmentUseCase` + `GetSavedDepartmentsUseCase`.
+
+**UI**: bookmark toggle on department-filtered feed. Saved departments surface as a `LazyRow` of chips on the home screen, each navigating to `FeedRoute("department", id)`.
+
+### Artist search note
+
+Met API `artistOrCulture=true` does fuzzy matching — "Rembrandt" returns Rembrandt + "School of Rembrandt" + culture hits. For v1 this is a feature (more feed content). If noisy, filter client-side by exact `artistDisplayName` match on fetched DTOs.
+
+### Implementation order
+
+1. `FeedSource` sealed class + widen repo interface (domain)
+2. `searchByArtist` in API service (data)
+3. Generalize `ArtworkRepositoryImpl` pool logic with `activeSource` tracking (data)
+4. `SavedDepartment.sq` + local data source + `DepartmentRepository` (data/database)
+5. Update `FeedRoute` to accept source params, update VM to parse (UI)
+6. Add department/artist chips to feed page overlay (UI)
+7. Add save-department toggle to feed header (UI)
+8. Add saved-departments row to home screen (UI)
+
+Steps 1–3 land together (no breaking change, `Discover` is default). Step 4 + 7–8 are the "save department" vertical. Steps 5–6 are navigation wiring.
 
 ---
 

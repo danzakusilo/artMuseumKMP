@@ -21,6 +21,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import dev.danya.museum.feature.artworks.ui.nav.feedGraph
 import dev.danya.museum.feature.homescreen.ui.nav.HomeRoute
 import dev.danya.museum.feature.homescreen.ui.nav.homeScreenGraph
 
@@ -62,6 +63,7 @@ fun RootNavHost(
             modifier = Modifier.fillMaxSize().padding(padding),
         ) {
             homeScreenGraph()
+            feedGraph()
             composable<FavoritesRoute> { PlaceholderScreen("Favorites") }
         }
     }

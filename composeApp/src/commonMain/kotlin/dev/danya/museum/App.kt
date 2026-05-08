@@ -7,6 +7,7 @@ import dev.danya.museum.core.database.di.databaseModule
 import dev.danya.museum.core.network.di.networkModule
 import dev.danya.museum.core.ui.theme.MuseumTheme
 import dev.danya.museum.feature.artworks.data.di.artworksDataModule
+import dev.danya.museum.feature.artworks.ui.di.artworksPresentationModule
 import dev.danya.museum.feature.homescreen.ui.di.homescreenPresentationModule
 import dev.danya.museum.navigation.RootNavHost
 import org.koin.compose.KoinApplication
@@ -24,6 +25,7 @@ fun App(platformSetup: org.koin.core.KoinApplication.() -> Unit = {}) {
             networkModule,
             databaseModule,
             artworksDataModule,
+            artworksPresentationModule,
             homescreenPresentationModule,
         )
     }) {
