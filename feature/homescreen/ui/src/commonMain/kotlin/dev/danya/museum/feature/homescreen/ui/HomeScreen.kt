@@ -56,14 +56,6 @@ fun HomeScreen(
             style = MaterialTheme.typography.headlineLarge,
             color = colors.onBackground,
         )
-        PromoCard(
-            title = "See new Artworks!",
-            subtitle = "Explore the collection",
-            containerColor = colors.primaryContainer,
-            contentColor = colors.onPrimaryContainer,
-            illustration = Res.drawable.promo_gallery,
-            onClick = onNavigateToArtworks,
-        )
 
         PromoCard(
             title = "Browse Favourites",
