@@ -83,4 +83,8 @@ class ArtworkLocalDataSource(
     fun deleteIfOrphan(id: Int) {
         db.artworkQueries.deleteIfOrphan(id.toLong())
     }
+
+    fun evictLooseCache(maxKeep: Int) {
+        db.artworkQueries.evictLooseCache(maxKeep.toLong())
+    }
 }

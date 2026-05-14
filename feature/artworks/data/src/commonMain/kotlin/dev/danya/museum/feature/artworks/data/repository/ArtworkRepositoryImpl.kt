@@ -29,6 +29,7 @@ class ArtworkRepositoryImpl(
     private val feedMutex = Mutex()
     private val feedIdPool = mutableListOf<Int>()
     private var feedCursor = 0
+    private val looseCacheLimit = 200
 
     override suspend fun searchArtworks(
         query: String,
@@ -83,6 +84,7 @@ class ArtworkRepositoryImpl(
                         if (result.size >= limit) break
                     }
                 }
+                local.evictLooseCache(looseCacheLimit)
                 result
             }.toResult()
         }

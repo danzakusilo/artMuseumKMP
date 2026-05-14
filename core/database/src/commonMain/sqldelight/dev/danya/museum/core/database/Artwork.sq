@@ -72,3 +72,15 @@ DELETE FROM Artwork
 WHERE id = ?
   AND isFavorite = 0
   AND NOT EXISTS (SELECT 1 FROM ExhibitArtwork WHERE artworkId = Artwork.id);
+
+evictLooseCache:
+DELETE FROM Artwork
+WHERE isFavorite = 0
+  AND id NOT IN (SELECT artworkId FROM ExhibitArtwork)
+  AND id NOT IN (
+    SELECT id FROM Artwork
+    WHERE isFavorite = 0
+      AND id NOT IN (SELECT artworkId FROM ExhibitArtwork)
+    ORDER BY cachedAt DESC
+    LIMIT :maxKeep
+  );
