@@ -56,9 +56,11 @@ class ArtworkRepositoryImpl(
 
     override suspend fun getArtworkDetail(id: Int): Result<Artwork> =
         runCatching {
-            val dto = api.getObjectSingle(id)
-            upsertDto(dto)
-            dto.toDomain()
+            local.getById(id)?.toDomain() ?: run {
+                val dto = api.getObjectSingle(id)
+                upsertDto(dto)
+                dto.toDomain()
+            }
         }.toResult()
 
     override suspend fun getArtworkFeedPage(limit: Int): Result<List<Artwork>> =

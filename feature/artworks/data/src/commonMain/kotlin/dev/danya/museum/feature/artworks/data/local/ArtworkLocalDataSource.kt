@@ -13,6 +13,9 @@ class ArtworkLocalDataSource(
     private val db: MuseumDatabase,
     private val dispatchers: AppDispatchers,
 ) {
+    fun getById(id: Int): dev.danya.museum.core.database.Artwork? =
+        db.artworkQueries.selectById(id.toLong()).executeAsOneOrNull()
+
     fun getFavorites(): Flow<List<ArtworkSummary>> =
         db.artworkQueries.selectFavorites()
             .asFlow()
@@ -38,38 +41,40 @@ class ArtworkLocalDataSource(
         repository: String?,
         cachedAt: Long,
     ) {
-        db.artworkQueries.insertOrIgnore(
-            id = id.toLong(),
-            title = title,
-            primaryImage = primaryImage,
-            artistDisplayName = artistDisplayName,
-            objectDate = objectDate,
-            culture = culture,
-            period = period,
-            dynasty = dynasty,
-            medium = medium,
-            dimensions = dimensions,
-            department = department,
-            classification = classification,
-            repository = repository,
-            cachedAt = cachedAt,
-        )
-        db.artworkQueries.updateMetadata(
-            title = title,
-            primaryImage = primaryImage,
-            artistDisplayName = artistDisplayName,
-            objectDate = objectDate,
-            culture = culture,
-            period = period,
-            dynasty = dynasty,
-            medium = medium,
-            dimensions = dimensions,
-            department = department,
-            classification = classification,
-            repository = repository,
-            cachedAt = cachedAt,
-            id = id.toLong(),
-        )
+        db.transaction {
+            db.artworkQueries.insertOrIgnore(
+                id = id.toLong(),
+                title = title,
+                primaryImage = primaryImage,
+                artistDisplayName = artistDisplayName,
+                objectDate = objectDate,
+                culture = culture,
+                period = period,
+                dynasty = dynasty,
+                medium = medium,
+                dimensions = dimensions,
+                department = department,
+                classification = classification,
+                repository = repository,
+                cachedAt = cachedAt,
+            )
+            db.artworkQueries.updateMetadata(
+                title = title,
+                primaryImage = primaryImage,
+                artistDisplayName = artistDisplayName,
+                objectDate = objectDate,
+                culture = culture,
+                period = period,
+                dynasty = dynasty,
+                medium = medium,
+                dimensions = dimensions,
+                department = department,
+                classification = classification,
+                repository = repository,
+                cachedAt = cachedAt,
+                id = id.toLong(),
+            )
+        }
     }
 
     fun setFavorite(id: Int, isFavorite: Boolean, favoritedAt: Long?) {
