@@ -115,8 +115,10 @@ commonMain/
 sqldelight/
   dev/danya/museum/core/database/
     Artwork.sq            cached artwork rows + isFavorite flag, upsert/select/setFavorite/deleteIfOrphan
-    Exhibit.sq            user-created exhibits, insert/selectAll/rename/delete
-    ExhibitArtwork.sq     join table with ON DELETE CASCADE on both sides
+    Exhibit.sq            user-created exhibits, insert/selectAll/selectAllWithCount/rename/delete
+    ExhibitArtwork.sq     join table with ON DELETE CASCADE on both sides;
+                          removeAllForArtwork (used by unfavorite cascade);
+                          exhibitsContainingArtwork (reactive query for detail screen)
 ```
 
 ### `:core:ui`
@@ -150,15 +152,19 @@ commonMain/
     Exhibit.kt            data class (id: Long, name, createdAt, artworkCount)
   repository/
     ArtworkRepository.kt  interface (suspend + Flow only, no platform types);
-                          includes getArtworkFeedPage(limit) — cursor-based, no offset
-    ExhibitRepository.kt  interface (CRUD + add/remove artwork)
+                          includes getArtworkFeedPage(limit) — cursor-based, no offset;
+                          isFavorite(artworkId) — single-shot check
+    ExhibitRepository.kt  interface (CRUD + add/remove artwork);
+                          getExhibitIdsForArtwork(artworkId) — reactive Flow<Set<Long>>
   usecase/
     SearchArtworksUseCase.kt
     GetArtworkDetailUseCase.kt
     GetArtworkFeedUseCase.kt   wraps getArtworkFeedPage; default page size 10
     GetFavoritesUseCase.kt
+    IsFavoriteUseCase.kt       single-shot favorite check (used by detail VM on load)
     ToggleFavoriteUseCase.kt
     GetExhibitsUseCase.kt
+    GetExhibitIdsForArtworkUseCase.kt   reactive set of exhibit IDs containing an artwork
     CreateExhibitUseCase.kt
     AddArtworkToExhibitUseCase.kt
     RemoveArtworkFromExhibitUseCase.kt
@@ -178,14 +184,17 @@ commonMain/
                               searchAndFetch(query), fetchRecentArtworks(metadataDate)
   local/
     ArtworkLocalDataSource.kt   SQLDelight-backed artwork cache + favorites
-    ExhibitLocalDataSource.kt   SQLDelight-backed exhibits + join-table CRUD
+    ExhibitLocalDataSource.kt   SQLDelight-backed exhibits + join-table CRUD;
+                                getExhibitIdsForArtwork (reactive), removeAllForArtwork (cascade)
   mapper/
     ArtworkMapper.kt          DTO → domain entity (toDomain, toSummary for both DTO and DB entity)
   repository/
     ArtworkRepositoryImpl.kt  implements domain repository;
                               feed: holds feedIdPool + feedCursor, picks random Department,
                               shuffles with session seed, skips imageless, pre-upserts to local DB;
-                              upsertDto() shared helper for detail + feed paths
+                              upsertDto() shared helper for detail + feed paths;
+                              toggleFavorite: unfavoriting cascades to removeAllForArtwork
+                              (via injected ExhibitLocalDataSource) then deleteIfOrphan
   di/
     ArtworksDataModule.kt     Koin module
 ```
@@ -204,16 +213,27 @@ commonMain/
     ArtworkListViewModel.kt
     ArtworkListState.kt      sealed UI state
   detail/
-    ArtworkDetailScreen.kt
-    ArtworkDetailViewModel.kt
-    ArtworkDetailState.kt
+    ArtworkDetailScreen.kt   two FABs in Column: exhibit (add/manage) + favorite (heart);
+                              bottom sheet for exhibit toggle-checkmarks
+    ArtworkDetailViewModel.kt  loads initial isFavorite; observes artworkExhibitIds;
+                               onToggleExhibit add/remove; unfavorite cascades via data layer
+    ArtworkDetailState.kt     Content includes artworkExhibitIds: Set<Long>
   search/
     SearchScreen.kt
     SearchViewModel.kt
     SearchState.kt
+  exhibitions/
+    ExhibitDetailScreen.kt   inline rename: pencil icon → edit mode (OutlinedTextField +
+                              FocusRequester + confirm/cancel); manages displayName locally
+    ExhibitDetailViewModel.kt  observes artworks + onRename
+    ExhibitionsTab.kt        list of exhibits with previews, create/rename/delete
   favorites/
     FavoritesScreen.kt
     FavoritesViewModel.kt
+  component/
+    ExhibitBottomSheet.kt    reusable sheet: lists all exhibits with Checkbox per row;
+                              checked = artwork is in exhibit; tap row to toggle add/remove;
+                              also supports bulk-add mode (pass empty artworkExhibitIds)
   nav/
     FeedRoute.kt             @Serializable data object — bottom nav "Discover" tab
     FeedNavGraph.kt           NavGraphBuilder.feedGraph()
@@ -270,6 +290,8 @@ Never throw across layer boundaries. Map exceptions to `AppError` in the data la
 - Driver created via `expect class DatabaseDriverFactory` with platform `actual` implementations.
 - Enable `PRAGMA foreign_keys = ON` in the driver setup so `ON DELETE CASCADE` on the join table actually fires.
 - Cache hygiene: after un-favoriting or removing from an exhibit, call `Artwork.deleteIfOrphan` to drop rows no longer referenced.
+- Unfavorite cascade: un-favoriting removes the artwork from **all** exhibits first (`ExhibitArtwork.removeAllForArtwork`), then clears the flag, then `deleteIfOrphan`. Removing from an exhibit does **not** affect favorite status.
+- Reactive queries: when a Flow must react to changes in a joined table, the base SQL query must reference that table (e.g. `selectAllWithCount` joins `ExhibitArtwork` so the exhibits list updates when artworks are added/removed). A plain `selectAll` on `Exhibit` alone would miss `ExhibitArtwork` changes.
 
 ### No-go rules
 - Domain must not depend on Ktor, SQLDelight, Coil, or any platform API
