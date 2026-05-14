@@ -18,32 +18,4 @@
         android:strokeLineCap="round"
         android:fillColor="#00000000"
         android:pathData="M68,68 L88,88" />
-
-    <!-- Small lines inside glass (search results hint) -->
-    <path
-        android:strokeColor="#000000"
-        android:strokeWidth="3"
-        android:strokeLineCap="round"
-        android:fillAlpha="0.4"
-        android:strokeAlpha="0.4"
-        android:fillColor="#00000000"
-        android:pathData="M38,30 L62,30" />
-
-    <path
-        android:strokeColor="#000000"
-        android:strokeWidth="3"
-        android:strokeLineCap="round"
-        android:fillAlpha="0.4"
-        android:strokeAlpha="0.4"
-        android:fillColor="#00000000"
-        android:pathData="M38,40 L58,40" />
-
-    <path
-        android:strokeColor="#000000"
-        android:strokeWidth="3"
-        android:strokeLineCap="round"
-        android:fillAlpha="0.25"
-        android:strokeAlpha="0.25"
-        android:fillColor="#00000000"
-        android:pathData="M38,50 L55,50" />
 </vector>
