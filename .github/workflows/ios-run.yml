@@ -1,0 +1,121 @@
+name: iOS Simulator Run (manual)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run:
+    name: Build & launch on iOS Simulator
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build iosApp
+        working-directory: iosApp
+        run: |
+          xcodebuild build \
+            -project iosApp.xcodeproj \
+            -scheme iosApp \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination "generic/platform=iOS Simulator" \
+            -derivedDataPath ../build/derivedData \
+            ARCHS="x86_64" \
+            VALID_ARCHS="x86_64" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_IDENTITY=
+
+      - name: Boot simulator & launch app
+        run: |
+          set +e
+
+          # Pick the latest available iOS runtime
+          RUNTIME=$(xcrun simctl list runtimes -j | python3 -c "
+          import json, sys
+          data = json.load(sys.stdin)
+          for r in reversed(data['runtimes']):
+              if r['isAvailable'] and 'iOS' in r.get('name', ''):
+                  print(r['identifier'])
+                  sys.exit(0)
+          sys.exit(1)")
+          echo "Runtime: $RUNTIME"
+
+          # Create a fresh x86_64 simulator device
+          DEVICE_ID=$(xcrun simctl create "CI-TestDevice" "iPhone 16" "$RUNTIME")
+          echo "Simulator ID: $DEVICE_ID"
+
+          xcrun simctl boot "$DEVICE_ID"
+          echo "Simulator booted"
+
+          # Locate the .app
+          APP_PATH=$(find build/derivedData/Build/Products/Debug-iphonesimulator \
+            -name "*.app" -maxdepth 1 -type d | head -1)
+          echo "App path: $APP_PATH"
+
+          BUNDLE_ID=$(/usr/libexec/PlistBuddy -c "Print CFBundleIdentifier" "$APP_PATH/Info.plist")
+          echo "Bundle ID: $BUNDLE_ID"
+
+          # Install
+          xcrun simctl install "$DEVICE_ID" "$APP_PATH"
+          echo "App installed"
+
+          # Launch with console output in background
+          echo ""
+          echo "=== App Launch Output ==="
+          xcrun simctl launch --console-pty "$DEVICE_ID" "$BUNDLE_ID" > launch_output.txt 2>&1 &
+          LAUNCH_PID=$!
+
+          # Wait up to 30s for it to run or crash
+          sleep 30
+          kill $LAUNCH_PID 2>/dev/null || true
+          wait $LAUNCH_PID 2>/dev/null || true
+
+          echo "--- launch stdout/stderr ---"
+          cat launch_output.txt || true
+
+          # Check if still running
+          echo ""
+          if xcrun simctl spawn "$DEVICE_ID" launchctl list 2>/dev/null | grep -q "$BUNDLE_ID"; then
+            echo "✅ App is still running after 30s"
+          else
+            echo "❌ App is NOT running (likely crashed)"
+          fi
+
+          # Collect crash reports (check multiple locations)
+          echo ""
+          echo "=== Crash Reports ==="
+          find ~/Library/Logs/DiagnosticReports -name "demo*" -mmin -10 \
+            -exec echo "--- {} ---" \; -exec cat {} \; 2>/dev/null || true
+          find ~/Library/Developer/CoreSimulator/Devices/"$DEVICE_ID"/data/Library/Logs/CrashReporter \
+            -name "*.ips" -mmin -10 \
+            -exec echo "--- {} ---" \; -exec cat {} \; 2>/dev/null || true
+
+          # System log — broader predicate to catch crash info
+          echo ""
+          echo "=== System Log (last 2 min) ==="
+          xcrun simctl spawn "$DEVICE_ID" log show --last 2m \
+            --predicate 'process == "demo" OR subsystem == "com.apple.CoreSimulator" OR eventMessage CONTAINS[c] "crash" OR eventMessage CONTAINS[c] "demo"' \
+            --style compact 2>&1 | tail -300 || true
+
+          # Cleanup
+          xcrun simctl shutdown "$DEVICE_ID" 2>/dev/null || true
+          xcrun simctl delete "$DEVICE_ID" 2>/dev/null || true
+
+      - name: Upload launch logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: simulator-launch-logs
+          path: launch_output.txt
+          if-no-files-found: warn
