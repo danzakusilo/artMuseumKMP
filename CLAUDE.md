@@ -42,37 +42,55 @@ Full-screen vertical pager. Each session picks a random Met department, shuffles
 ## Module Graph
 
 ```
-:composeApp
-    └── :feature:artworks:ui
-    └── :core:ui
-
-:feature:artworks:ui
-    └── :feature:artworks:domain
-    └── :core:ui
-    └── :core:common
-
-:feature:artworks:data
-    └── :feature:artworks:domain
-    └── :core:network
+:composeApp                          (app shell: DI wiring, navigation, entry points)
+    ├── :feature:artworks:ui
+    ├── :feature:artworks:data       (aggregated here for Koin module registration)
+    ├── :feature:homescreen:ui
+    ├── :feature:search:ui
+    ├── :core:ui
+    ├── :core:common
+    ├── :core:network
     └── :core:database
+
+:feature:artworks:ui                 (screens, ViewModels, navigation graphs)
+    ├── :feature:artworks:domain
+    ├── :core:ui
     └── :core:common
 
-:feature:artworks:domain
+:feature:artworks:data               (API service, local data sources, repo impls)
+    ├── :feature:artworks:domain
+    ├── :core:network
+    ├── :core:database
     └── :core:common
 
-:core:network
+:feature:artworks:domain             (entities, repo interfaces, use cases)
     └── :core:common
 
-:core:database
+:feature:homescreen:ui               (home screen, promo cards)
+    ├── :core:ui
     └── :core:common
 
-:core:ui
+:feature:search:ui                   (search screen, results)
+    ├── :feature:artworks:domain
+    ├── :core:ui
     └── :core:common
 
-:core:common   (no internal deps)
+:core:network                        (Ktor HttpClient, profiling plugin)
+    └── :core:common
+
+:core:database                       (SQLDelight schema, driver factory, profiling driver)
+    └── :core:common
+
+:core:ui                             (theme, shared components)
+    └── :core:common
+
+:core:common                         (Result, AppError, dispatchers — no internal deps)
 ```
 
-**Rule**: `:composeApp` wires DI and navigation only — it never imports domain or data directly. Data never imports UI. Domain imports nothing except `:core:common`.
+**Rules**:
+- `:composeApp` wires DI and navigation — it imports feature data modules only for Koin registration, never for direct use.
+- Data never imports UI. Domain imports nothing except `:core:common`.
+- Feature UI modules may depend on other features' domain layers (e.g., `:feature:search:ui` → `:feature:artworks:domain`) but never on other features' data or UI layers.
 
 ---
 
