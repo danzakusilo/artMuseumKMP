@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.io.IOException
 import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -133,6 +134,13 @@ class ArtworkRepositoryImpl(
     private fun <T> kotlin.Result<T>.toResult(): Result<T> =
         fold(
             onSuccess = { Result.Success(it) },
-            onFailure = { Result.Error(AppError.NetworkError(null, it.message ?: "Unknown error")) },
+            onFailure = { e ->
+                Result.Error(
+                    when (e) {
+                        is IOException -> AppError.NoInternetError
+                        else -> AppError.NetworkError(null, e.message ?: "Unknown error")
+                    },
+                )
+            },
         )
 }

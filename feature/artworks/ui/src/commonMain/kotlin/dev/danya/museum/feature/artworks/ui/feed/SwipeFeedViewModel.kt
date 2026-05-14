@@ -36,9 +36,7 @@ class SwipeFeedViewModel(
                     isLoadingMore = false,
                 )
 
-                is Result.Error -> _state.value = SwipeFeedState.Error(
-                    result.error.toString(),
-                )
+                is Result.Error -> _state.value = SwipeFeedState.Error(result.error)
             }
         }
     }

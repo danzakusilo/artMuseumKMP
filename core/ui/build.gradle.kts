@@ -33,6 +33,10 @@ kotlin {
     }
 }
 
+compose.resources {
+    publicResClass = true
+}
+
 android {
     namespace = "dev.danya.museum.core.ui"
     compileSdk = libs.versions.android.compileSdk.get().toInt()

@@ -39,7 +39,7 @@ class SearchViewModel(
                 it.copy(
                     resultState = when (result) {
                         is Result.Success -> ResultState.Content(result.data)
-                        is Result.Error -> ResultState.Error(result.error.toString())
+                        is Result.Error -> ResultState.Error(result.error)
                     },
                 )
             }

@@ -17,4 +17,10 @@
     <string name="department_musical_instruments">Musical Instruments</string>
     <string name="department_photographs">Photographs</string>
     <string name="department_modern_art">Modern Art</string>
+
+    <string name="error_no_internet_title">No internet connection</string>
+    <string name="error_no_internet_subtitle">Check your connection and try again</string>
+    <string name="error_generic_title">Something went wrong</string>
+    <string name="error_generic_subtitle">Please try again later</string>
+    <string name="error_retry">Retry</string>
 </resources>

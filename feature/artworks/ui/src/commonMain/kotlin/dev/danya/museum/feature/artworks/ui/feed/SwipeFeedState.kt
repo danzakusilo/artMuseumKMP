@@ -1,5 +1,6 @@
 package dev.danya.museum.feature.artworks.ui.feed
 
+import dev.danya.museum.core.common.result.AppError
 import dev.danya.museum.feature.artworks.domain.entity.Artwork
 
 sealed class SwipeFeedState {
@@ -9,5 +10,5 @@ sealed class SwipeFeedState {
         val favorites: Set<Int>,
         val isLoadingMore: Boolean,
     ) : SwipeFeedState()
-    data class Error(val message: String) : SwipeFeedState()
+    data class Error(val error: AppError) : SwipeFeedState()
 }

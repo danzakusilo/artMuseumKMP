@@ -11,6 +11,14 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import demo.core.ui.generated.resources.Res
+import demo.core.ui.generated.resources.error_generic_subtitle
+import demo.core.ui.generated.resources.error_generic_title
+import demo.core.ui.generated.resources.error_no_internet_subtitle
+import demo.core.ui.generated.resources.error_no_internet_title
+import demo.core.ui.generated.resources.error_retry
+import dev.danya.museum.core.common.result.AppError
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -35,11 +43,29 @@ fun SwipeFeedScreen(
             }
         }
         is SwipeFeedState.Error -> {
+            val isNoInternet = s.error is AppError.NoInternetError
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("Something went wrong", style = MaterialTheme.typography.bodyLarge)
-                    Spacer(Modifier.height(8.dp))
-                    Button(onClick = viewModel::retry) { Text("Retry") }
+                    Text(
+                        text = stringResource(
+                            if (isNoInternet) Res.string.error_no_internet_title
+                            else Res.string.error_generic_title,
+                        ),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = stringResource(
+                            if (isNoInternet) Res.string.error_no_internet_subtitle
+                            else Res.string.error_generic_subtitle,
+                        ),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    Button(onClick = viewModel::retry) {
+                        Text(stringResource(Res.string.error_retry))
+                    }
                 }
             }
         }
