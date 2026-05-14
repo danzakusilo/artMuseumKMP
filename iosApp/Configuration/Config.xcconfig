@@ -1,5 +1,7 @@
 TEAM_ID=
 
+OTHER_LDFLAGS=$(inherited) -lsqlite3
+
 PRODUCT_NAME=demo
 PRODUCT_BUNDLE_IDENTIFIER=dev.danya.museum.demo$(TEAM_ID)
 
