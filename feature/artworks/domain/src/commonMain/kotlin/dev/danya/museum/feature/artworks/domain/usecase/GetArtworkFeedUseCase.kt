@@ -7,6 +7,6 @@ import dev.danya.museum.feature.artworks.domain.repository.ArtworkRepository
 private const val DEFAULT_FEED_PAGE_SIZE = 10
 
 class GetArtworkFeedUseCase(private val repository: ArtworkRepository) {
-    suspend operator fun invoke(limit: Int = DEFAULT_FEED_PAGE_SIZE): Result<List<Artwork>> =
-        repository.getArtworkFeedPage(limit)
+    suspend operator fun invoke(departmentId: Int, limit: Int = DEFAULT_FEED_PAGE_SIZE): Result<List<Artwork>> =
+        repository.getArtworkFeedPage(departmentId, limit)
 }

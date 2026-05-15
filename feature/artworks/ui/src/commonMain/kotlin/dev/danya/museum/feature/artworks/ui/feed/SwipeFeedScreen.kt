@@ -28,6 +28,25 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import dev.danya.museum.feature.artworks.domain.entity.Artwork
 import org.koin.compose.viewmodel.koinViewModel
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.Icon
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import demo.core.ui.generated.resources.feed_shuffle
+import dev.danya.museum.feature.artworks.domain.entity.Department
 
 @Composable
 fun SwipeFeedScreen(
@@ -70,13 +89,35 @@ fun SwipeFeedScreen(
             }
         }
         is SwipeFeedState.Content -> {
-            FeedPager(
-                artworks = s.artworks,
-                favorites = s.favorites,
-                onPageSettled = viewModel::onPageSettled,
-                onToggleFavorite = viewModel::onToggleFavorite,
-                onNavigateToDetail = onNavigateToDetail,
-            )
+            var showDepartmentPicker by remember { mutableStateOf(false) }
+
+            Box {
+                FeedPager(
+                    artworks = s.artworks,
+                    favorites = s.favorites,
+                    onPageSettled = viewModel::onPageSettled,
+                    onToggleFavorite = viewModel::onToggleFavorite,
+                    onNavigateToDetail = onNavigateToDetail,
+                )
+
+                DepartmentHeader(
+                    department = s.currentDepartment,
+                    onTap = { showDepartmentPicker = true },
+                    onShuffle = { viewModel.onChangeDepartment(null) },
+                    modifier = Modifier.align(Alignment.TopStart),
+                )
+            }
+
+            if (showDepartmentPicker) {
+                DepartmentPickerSheet(
+                    currentDepartment = s.currentDepartment,
+                    onSelectDepartment = { dept ->
+                        viewModel.onChangeDepartment(dept)
+                        showDepartmentPicker = false
+                    },
+                    onDismiss = { showDepartmentPicker = false },
+                )
+            }
         }
     }
 }
@@ -106,5 +147,58 @@ private fun FeedPager(
             onToggleFavorite = { onToggleFavorite(artwork.id) },
             onClick = { onNavigateToDetail(artwork.id) },
         )
+    }
+}
+
+@Composable
+private fun DepartmentHeader(
+    department: Department,
+    onTap: () -> Unit,
+    onShuffle: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .statusBarsPadding()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(
+            modifier = Modifier
+                .clip(MaterialTheme.shapes.small)
+                .background(Color.Black.copy(alpha = 0.5f))
+                .clickable(onClick = onTap)
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = stringResource(department.stringResource()),
+                style = MaterialTheme.typography.labelLarge,
+                color = Color.White,
+            )
+            Icon(
+                Icons.Default.ArrowDropDown,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .size(32.dp)
+                .clip(CircleShape)
+                .background(Color.Black.copy(alpha = 0.5f))
+                .clickable(onClick = onShuffle),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                Icons.Default.Refresh,
+                contentDescription = stringResource(Res.string.feed_shuffle),
+                tint = Color.White,
+                modifier = Modifier.size(18.dp),
+            )
+        }
     }
 }

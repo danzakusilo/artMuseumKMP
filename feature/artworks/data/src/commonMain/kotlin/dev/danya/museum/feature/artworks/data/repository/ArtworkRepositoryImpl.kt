@@ -9,9 +9,9 @@ import dev.danya.museum.feature.artworks.data.mapper.toSummary
 import dev.danya.museum.feature.artworks.data.remote.ArtworkApiService
 import dev.danya.museum.feature.artworks.data.remote.dto.ArtworkDetailDto
 import dev.danya.museum.feature.artworks.domain.entity.Artwork
-import dev.danya.museum.feature.artworks.domain.entity.Department
 import dev.danya.museum.feature.artworks.domain.entity.ArtworkSummary
 import dev.danya.museum.feature.artworks.domain.repository.ArtworkRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
@@ -32,18 +32,20 @@ class ArtworkRepositoryImpl(
     private val feedMutex = Mutex()
     private val feedIdPool = mutableListOf<Int>()
     private var feedCursor = 0
+    private var activeDepartmentId: Int? = null
     private val looseCacheLimit = 200
+    private val imagelessOvershoot = 2
+    private val minBatchSize = 5
 
     override suspend fun searchArtworks(
         query: String,
         departmentId: Int?,
         artistOrCulture: Boolean,
     ): Result<List<ArtworkSummary>> =
-        runCatching { api.searchAndFetch(query, departmentId, artistOrCulture).map { it.toSummary() } }
-            .toResult()
+        suspendResult { api.searchAndFetch(query, departmentId, artistOrCulture).map { it.toSummary() } }
 
     override suspend fun getRecentArtworks(): Result<List<Artwork>> =
-        runCatching {
+        suspendResult {
             val cutoff = Clock.System.now()
                 .minus(3.days)
                 .toLocalDateTime(TimeZone.UTC)
@@ -55,28 +57,34 @@ class ArtworkRepositoryImpl(
                 }
                 .also { dtos -> dtos.forEach { upsertDto(it) } }
                 .map { it.toDomain() }
-        }.toResult()
+        }
 
     override suspend fun getArtworkDetail(id: Int): Result<Artwork> =
-        runCatching {
+        suspendResult {
             local.getById(id)?.toDomain() ?: run {
                 val dto = api.getObjectSingle(id)
                 upsertDto(dto)
                 dto.toDomain()
             }
-        }.toResult()
+        }
 
-    override suspend fun getArtworkFeedPage(limit: Int): Result<List<Artwork>> =
+    override suspend fun getArtworkFeedPage(departmentId: Int, limit: Int): Result<List<Artwork>> =
         feedMutex.withLock {
-            runCatching {
+            try {
+                if (departmentId != activeDepartmentId) {
+                    feedIdPool.clear()
+                    feedCursor = 0
+                    activeDepartmentId = departmentId
+                }
                 if (feedIdPool.isEmpty()) {
-                    val departmentId = Department.entries.random().id
                     val ids = api.fetchDepartmentObjectIds(departmentId)
                     feedIdPool.addAll(ids.shuffled(Random(Clock.System.now().toEpochMilliseconds())))
                 }
                 val result = mutableListOf<Artwork>()
                 while (result.size < limit && feedCursor < feedIdPool.size) {
-                    val end = minOf(feedCursor + limit, feedIdPool.size)
+                    val remaining = limit - result.size
+                    val batchSize = (remaining * imagelessOvershoot).coerceAtLeast(minBatchSize)
+                    val end = minOf(feedCursor + batchSize, feedIdPool.size)
                     val batchIds = feedIdPool.subList(feedCursor, end)
                     feedCursor = end
                     val dtos = api.fetchArtworkDetails(batchIds)
@@ -90,18 +98,22 @@ class ArtworkRepositoryImpl(
                     }
                 }
                 local.evictLooseCache(looseCacheLimit)
-                result
-            }.toResult()
+                Result.Success(result)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Result.Error(e.toAppError())
+            }
         }
 
     override fun getFavorites(): Flow<Result<List<ArtworkSummary>>> =
         local.getFavorites().map { Result.Success(it) }
 
     override suspend fun isFavorite(artworkId: Int): Result<Boolean> =
-        runCatching { local.isFavorite(artworkId) }.toResult()
+        suspendResult { local.isFavorite(artworkId) }
 
     override suspend fun toggleFavorite(artworkId: Int): Result<Unit> =
-        runCatching {
+        suspendResult {
             val currently = local.isFavorite(artworkId)
             val nowFavorite = !currently
             if (nowFavorite) {
@@ -115,7 +127,7 @@ class ArtworkRepositoryImpl(
                 local.setFavorite(id = artworkId, isFavorite = false, favoritedAt = null)
                 local.deleteIfOrphan(artworkId)
             }
-        }.toResult()
+        }
 
     private fun upsertDto(dto: ArtworkDetailDto) {
         local.upsert(
@@ -137,16 +149,18 @@ class ArtworkRepositoryImpl(
         )
     }
 
-    private fun <T> kotlin.Result<T>.toResult(): Result<T> =
-        fold(
-            onSuccess = { Result.Success(it) },
-            onFailure = { e ->
-                Result.Error(
-                    when (e) {
-                        is IOException -> AppError.NoInternetError
-                        else -> AppError.NetworkError(null, e.message ?: "Unknown error")
-                    },
-                )
-            },
-        )
+    private suspend fun <T> suspendResult(block: suspend () -> T): Result<T> =
+        try {
+            Result.Success(block())
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Result.Error(e.toAppError())
+        }
+
+    private fun Exception.toAppError(): AppError =
+        when (this) {
+            is IOException -> AppError.NoInternetError
+            else -> AppError.NetworkError(null, message ?: "Unknown error")
+        }
 }

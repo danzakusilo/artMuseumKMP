@@ -23,4 +23,7 @@
     <string name="error_generic_title">Something went wrong</string>
     <string name="error_generic_subtitle">Please try again later</string>
     <string name="error_retry">Retry</string>
+
+    <string name="feed_shuffle">Shuffle</string>
+    <string name="feed_choose_department">Choose Department</string>
 </resources>

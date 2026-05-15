@@ -8,6 +8,7 @@ import io.ktor.client.request.get
 import io.ktor.client.request.parameter
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.coroutineScope
 
 private const val BASE_URL = "https://collectionapi.metmuseum.org/public/collection/v1"
@@ -35,8 +36,17 @@ class ArtworkApiService(private val client: HttpClient) {
     suspend fun fetchArtworkDetails(ids: List<Int>): List<ArtworkDetailDto> = coroutineScope {
         ids.chunked(FETCH_CONCURRENCY)
             .flatMap { chunk ->
-                chunk.map { id -> async { runCatching { getObjectSingle(id) }.getOrNull() } }
-                    .awaitAll()
+                chunk.map { id ->
+                    async {
+                        try {
+                            getObjectSingle(id)
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (_: Exception) {
+                            null
+                        }
+                    }
+                }.awaitAll()
             }
             .filterNotNull()
     }
