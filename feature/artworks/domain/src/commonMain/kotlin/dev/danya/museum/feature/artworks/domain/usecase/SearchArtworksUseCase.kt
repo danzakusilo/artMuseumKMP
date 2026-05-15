@@ -9,8 +9,9 @@ class SearchArtworksUseCase(private val repository: ArtworkRepository) {
         query: String,
         departmentId: Int? = null,
         artistOrCulture: Boolean = false,
+        hasImages: Boolean = true,
     ): Result<List<ArtworkSummary>> {
         if (query.isBlank()) return Result.Success(emptyList())
-        return repository.searchArtworks(query.trim(), departmentId, artistOrCulture)
+        return repository.searchArtworks(query.trim(), departmentId, artistOrCulture, hasImages)
     }
 }

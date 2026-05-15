@@ -1,10 +1,12 @@
 package dev.danya.museum.feature.search.ui
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -13,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Search
@@ -69,17 +72,23 @@ fun SearchScreen(
             query = state.query,
             onQueryChange = viewModel::onQueryChange,
             onSearch = viewModel::onSearch,
+            artistOrCulture = state.artistOrCulture,
         )
         Spacer(Modifier.height(8.dp))
-        DepartmentChip(
-            selected = state.selectedDepartment,
-            onSelected = viewModel::onDepartmentSelected,
+        FilterChipsRow(
+            selectedDepartment = state.selectedDepartment,
+            onDepartmentSelected = viewModel::onDepartmentSelected,
+            hasImages = state.hasImages,
+            onHasImagesToggled = viewModel::onHasImagesToggled,
+            artistOrCulture = state.artistOrCulture,
+            onArtistOrCultureToggled = viewModel::onArtistOrCultureToggled,
         )
         Spacer(Modifier.height(8.dp))
         ResultsContent(
             resultState = state.resultState,
             onNavigateToDetail = onNavigateToDetail,
             onRetry = viewModel::onSearch,
+            onLoadMore = viewModel::onLoadMore,
             modifier = Modifier.weight(1f),
         )
     }
@@ -90,12 +99,15 @@ private fun SearchBar(
     query: String,
     onQueryChange: (String) -> Unit,
     onSearch: () -> Unit,
+    artistOrCulture: Boolean,
 ) {
     OutlinedTextField(
         value = query,
         onValueChange = onQueryChange,
         modifier = Modifier.fillMaxWidth(),
-        placeholder = { Text("Search artworks…") },
+        placeholder = {
+            Text(if (artistOrCulture) "Artist or culture name…" else "Search artworks…")
+        },
         leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
         trailingIcon = {
             if (query.isNotEmpty()) {
@@ -108,6 +120,38 @@ private fun SearchBar(
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
         keyboardActions = KeyboardActions(onSearch = { onSearch() }),
     )
+}
+
+@Composable
+private fun FilterChipsRow(
+    selectedDepartment: Department?,
+    onDepartmentSelected: (Department?) -> Unit,
+    hasImages: Boolean,
+    onHasImagesToggled: () -> Unit,
+    artistOrCulture: Boolean,
+    onArtistOrCultureToggled: () -> Unit,
+) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+    ) {
+        DepartmentChip(
+            selected = selectedDepartment,
+            onSelected = onDepartmentSelected,
+        )
+        FilterChip(
+            selected = hasImages,
+            onClick = onHasImagesToggled,
+            label = { Text("Has image") },
+        )
+        FilterChip(
+            selected = artistOrCulture,
+            onClick = onArtistOrCultureToggled,
+            label = { Text("Artist/Culture") },
+        )
+    }
 }
 
 @Composable
@@ -160,6 +204,7 @@ private fun ResultsContent(
     resultState: ResultState,
     onNavigateToDetail: (Int) -> Unit,
     onRetry: () -> Unit,
+    onLoadMore: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     when (resultState) {
@@ -216,7 +261,10 @@ private fun ResultsContent(
             } else {
                 ResultsList(
                     results = resultState.results,
+                    hasMore = resultState.hasMore,
+                    isLoadingMore = resultState.isLoadingMore,
                     onNavigateToDetail = onNavigateToDetail,
+                    onLoadMore = onLoadMore,
                     modifier = modifier,
                 )
             }
@@ -227,7 +275,10 @@ private fun ResultsContent(
 @Composable
 private fun ResultsList(
     results: List<ArtworkSummary>,
+    hasMore: Boolean,
+    isLoadingMore: Boolean,
     onNavigateToDetail: (Int) -> Unit,
+    onLoadMore: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
@@ -243,6 +294,20 @@ private fun ResultsList(
                 objectDate = artwork.objectDate,
                 modifier = Modifier.fillMaxWidth().clickable { onNavigateToDetail(artwork.id) },
             )
+        }
+        if (hasMore) {
+            item {
+                Box(
+                    Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (isLoadingMore) {
+                        CircularProgressIndicator(Modifier.size(24.dp))
+                    } else {
+                        Button(onClick = onLoadMore) { Text("Load more") }
+                    }
+                }
+            }
         }
     }
 }

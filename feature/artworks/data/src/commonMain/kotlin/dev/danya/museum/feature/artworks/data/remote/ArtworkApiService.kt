@@ -22,10 +22,11 @@ class ArtworkApiService(private val client: HttpClient) {
         query: String,
         departmentId: Int? = null,
         artistOrCulture: Boolean = false,
+        hasImages: Boolean = true,
     ): SearchResultDto =
         client.get("$BASE_URL/search") {
             parameter("q", query)
-            parameter("hasImages", true)
+            if (hasImages) parameter("hasImages", true)
             if (departmentId != null) parameter("departmentId", departmentId)
             if (artistOrCulture) parameter("artistOrCulture", true)
         }.body()
@@ -60,8 +61,9 @@ class ArtworkApiService(private val client: HttpClient) {
         query: String,
         departmentId: Int? = null,
         artistOrCulture: Boolean = false,
+        hasImages: Boolean = true,
     ): List<ArtworkDetailDto> {
-        val ids = search(query, departmentId, artistOrCulture)
+        val ids = search(query, departmentId, artistOrCulture, hasImages)
             .objectIDs?.take(SEARCH_RESULT_LIMIT) ?: return emptyList()
         return fetchArtworkDetails(ids)
     }

@@ -10,7 +10,9 @@ interface ArtworkRepository {
         query: String,
         departmentId: Int? = null,
         artistOrCulture: Boolean = false,
+        hasImages: Boolean = true,
     ): Result<List<ArtworkSummary>>
+    suspend fun loadMoreSearchResults(): Result<List<ArtworkSummary>>
     suspend fun getArtworkDetail(id: Int): Result<Artwork>
     suspend fun getRecentArtworks(): Result<List<Artwork>>
     suspend fun getArtworkFeedPage(departmentId: Int, limit: Int): Result<List<Artwork>>

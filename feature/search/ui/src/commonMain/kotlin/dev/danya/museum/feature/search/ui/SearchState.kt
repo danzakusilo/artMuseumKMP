@@ -7,12 +7,18 @@ import dev.danya.museum.feature.artworks.domain.entity.Department
 data class SearchState(
     val query: String = "",
     val selectedDepartment: Department? = null,
+    val hasImages: Boolean = true,
+    val artistOrCulture: Boolean = false,
     val resultState: ResultState = ResultState.Idle,
 )
 
 sealed class ResultState {
     data object Idle : ResultState()
     data object Loading : ResultState()
-    data class Content(val results: List<ArtworkSummary>) : ResultState()
+    data class Content(
+        val results: List<ArtworkSummary>,
+        val hasMore: Boolean = false,
+        val isLoadingMore: Boolean = false,
+    ) : ResultState()
     data class Error(val error: AppError) : ResultState()
 }

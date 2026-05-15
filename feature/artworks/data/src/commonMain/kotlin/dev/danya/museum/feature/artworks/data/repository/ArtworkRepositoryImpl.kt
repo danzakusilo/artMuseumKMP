@@ -37,12 +37,80 @@ class ArtworkRepositoryImpl(
     private val imagelessOvershoot = 2
     private val minBatchSize = 5
 
+    private val searchMutex = Mutex()
+    private val searchIdPool = mutableListOf<Int>()
+    private var searchCursor = 0
+    private var activeSearchKey: SearchKey? = null
+
+    private data class SearchKey(
+        val query: String,
+        val departmentId: Int?,
+        val artistOrCulture: Boolean,
+        val hasImages: Boolean,
+    )
+
     override suspend fun searchArtworks(
         query: String,
         departmentId: Int?,
         artistOrCulture: Boolean,
-    ): Result<List<ArtworkSummary>> =
-        suspendResult { api.searchAndFetch(query, departmentId, artistOrCulture).map { it.toSummary() } }
+        hasImages: Boolean,
+    ): Result<List<ArtworkSummary>> = searchMutex.withLock {
+        try {
+            val key = SearchKey(query, departmentId, artistOrCulture, hasImages)
+            if (key != activeSearchKey) {
+                val ids = api.search(query, departmentId, artistOrCulture, hasImages)
+                    .objectIDs?.take(SEARCH_ID_LIMIT) ?: emptyList()
+                searchIdPool.clear()
+                searchIdPool.addAll(ids)
+                activeSearchKey = key
+            }
+            searchCursor = 0
+            fetchSearchPage()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Result.Error(e.toAppError())
+        }
+    }
+
+    override suspend fun loadMoreSearchResults(): Result<List<ArtworkSummary>> =
+        searchMutex.withLock {
+            try {
+                fetchSearchPage()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Result.Error(e.toAppError())
+            }
+        }
+
+    private suspend fun fetchSearchPage(): Result<List<ArtworkSummary>> {
+        if (searchCursor >= searchIdPool.size) return Result.Success(emptyList())
+        val end = minOf(searchCursor + SEARCH_PAGE_SIZE, searchIdPool.size)
+        val batchIds = searchIdPool.subList(searchCursor, end).toList()
+        searchCursor = end
+
+        val results = mutableMapOf<Int, ArtworkSummary>()
+        val missingIds = mutableListOf<Int>()
+        for (id in batchIds) {
+            val entity = local.getById(id)
+            if (entity != null) {
+                results[id] = entity.toSummary()
+            } else {
+                missingIds.add(id)
+            }
+        }
+
+        if (missingIds.isNotEmpty()) {
+            val fetched = api.fetchArtworkDetails(missingIds)
+            for (dto in fetched) {
+                upsertDto(dto)
+                results[dto.objectID] = dto.toSummary()
+            }
+        }
+
+        return Result.Success(batchIds.mapNotNull { results[it] })
+    }
 
     override suspend fun getRecentArtworks(): Result<List<Artwork>> =
         suspendResult {
@@ -163,4 +231,9 @@ class ArtworkRepositoryImpl(
             is IOException -> AppError.NoInternetError
             else -> AppError.NetworkError(null, message ?: "Unknown error")
         }
+
+    private companion object {
+        const val SEARCH_PAGE_SIZE = 10
+        const val SEARCH_ID_LIMIT = 80
+    }
 }
