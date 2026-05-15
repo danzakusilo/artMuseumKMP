@@ -6,6 +6,7 @@ import dev.danya.museum.feature.artworks.data.local.ArtworkLocalDataSource
 import dev.danya.museum.feature.artworks.data.local.ExhibitLocalDataSource
 import dev.danya.museum.feature.artworks.data.mapper.toDomain
 import dev.danya.museum.feature.artworks.data.mapper.toSummary
+import dev.danya.museum.core.database.Artwork as ArtworkEntity
 import dev.danya.museum.feature.artworks.data.remote.ArtworkApiService
 import dev.danya.museum.feature.artworks.data.remote.dto.ArtworkDetailDto
 import dev.danya.museum.feature.artworks.domain.entity.Artwork
@@ -89,27 +90,8 @@ class ArtworkRepositoryImpl(
         val end = minOf(searchCursor + SEARCH_PAGE_SIZE, searchIdPool.size)
         val batchIds = searchIdPool.subList(searchCursor, end).toList()
         searchCursor = end
-
-        val results = mutableMapOf<Int, ArtworkSummary>()
-        val missingIds = mutableListOf<Int>()
-        for (id in batchIds) {
-            val entity = local.getById(id)
-            if (entity != null) {
-                results[id] = entity.toSummary()
-            } else {
-                missingIds.add(id)
-            }
-        }
-
-        if (missingIds.isNotEmpty()) {
-            val fetched = api.fetchArtworkDetails(missingIds)
-            for (dto in fetched) {
-                upsertDto(dto)
-                results[dto.objectID] = dto.toSummary()
-            }
-        }
-
-        return Result.Success(batchIds.mapNotNull { results[it] })
+        val entities = resolveArtworks(batchIds)
+        return Result.Success(entities.map { it.toSummary() })
     }
 
     override suspend fun getRecentArtworks(): Result<List<Artwork>> =
@@ -153,15 +135,12 @@ class ArtworkRepositoryImpl(
                     val remaining = limit - result.size
                     val batchSize = (remaining * imagelessOvershoot).coerceAtLeast(minBatchSize)
                     val end = minOf(feedCursor + batchSize, feedIdPool.size)
-                    val batchIds = feedIdPool.subList(feedCursor, end)
+                    val batchIds = feedIdPool.subList(feedCursor, end).toList()
                     feedCursor = end
-                    val dtos = api.fetchArtworkDetails(batchIds)
-                    for (dto in dtos) {
-                        val hasImage = !dto.primaryImageSmall.isNullOrBlank() ||
-                            !dto.primaryImage.isNullOrBlank()
-                        if (!hasImage) continue
-                        upsertDto(dto)
-                        result.add(dto.toDomain())
+                    val entities = resolveArtworks(batchIds)
+                    for (entity in entities) {
+                        if (entity.primaryImage == null) continue
+                        result.add(entity.toDomain())
                         if (result.size >= limit) break
                     }
                 }
@@ -196,6 +175,27 @@ class ArtworkRepositoryImpl(
                 local.deleteIfOrphan(artworkId)
             }
         }
+
+    private suspend fun resolveArtworks(ids: List<Int>): List<ArtworkEntity> {
+        val resolved = mutableMapOf<Int, ArtworkEntity>()
+        val missingIds = mutableListOf<Int>()
+        for (id in ids) {
+            val entity = local.getById(id)
+            if (entity != null) {
+                resolved[id] = entity
+            } else {
+                missingIds.add(id)
+            }
+        }
+        if (missingIds.isNotEmpty()) {
+            val fetched = api.fetchArtworkDetails(missingIds)
+            for (dto in fetched) {
+                upsertDto(dto)
+                local.getById(dto.objectID)?.let { resolved[dto.objectID] = it }
+            }
+        }
+        return ids.mapNotNull { resolved[it] }
+    }
 
     private fun upsertDto(dto: ArtworkDetailDto) {
         local.upsert(
